@@ -2,13 +2,6 @@
 
 FactoryBot.define do
   # This file defines factories for the ForemanOvirt plugin.
-  factory :ovirt_host,
-    parent: :host do
-    name do
-      'foreman_ovirt'
-    end
-  end
-
   # The factory for the oVirt compute resource.
   factory :ovirt_cr,
     class: 'ForemanOvirt::Ovirt', parent: :compute_resource do
