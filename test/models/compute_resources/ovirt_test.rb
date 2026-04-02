@@ -582,5 +582,87 @@ module ForemanOvirt
         assert_not cr.valid?
       end
     end
+
+    describe '#vm_compute_attributes_for' do
+      require 'fog/ovirt/models/compute/volume'
+
+      before do
+        @plain_attrs = {
+          id: 'abc',
+          cpus: 5,
+        }
+        @vm = mock
+        @vm.stubs(:attributes).returns(@plain_attrs)
+
+        @cr = FactoryBot.build(:ovirt_cr)
+        @cr.stubs(:find_vm_by_uuid).returns(@vm)
+      end
+
+      test 'returns vm attributes with oVirt-specific volume attributes' do
+        # oVirt uses different volume attributes than libvirt
+        volume1 = Fog::Ovirt::Compute::Volume.new(
+          storage_domain: 'storage1',
+          size_gb: '1',
+          bootable: 'false',
+          sparse: 'true',
+          wipe_after_delete: 'true',
+          name: 'disk1'
+        )
+        volume2 = Fog::Ovirt::Compute::Volume.new(
+          storage_domain: 'storage2',
+          size_gb: '2',
+          bootable: 'false',
+          sparse: 'true',
+          wipe_after_delete: 'true',
+          name: 'disk2'
+        )
+
+        @vm.stubs(:volumes).returns([volume1, volume2])
+
+        expected_attrs = {
+          cpus: 5,
+          volumes_attributes: {
+            '0' => {
+              size_gb: '1',
+              storage_domain: 'storage1',
+              preallocate: '0',
+              wipe_after_delete: 'true',
+              interface: nil,
+              bootable: 'false',
+              id: nil,
+            },
+            '1' => {
+              size_gb: '2',
+              storage_domain: 'storage2',
+              preallocate: '0',
+              wipe_after_delete: 'true',
+              interface: nil,
+              bootable: 'false',
+              id: nil,
+            },
+          },
+        }
+
+        attrs = @cr.vm_compute_attributes_for('abc')
+        assert_equal expected_attrs, attrs
+      end
+
+      test 'handles oVirt volumes with bootable flag' do
+        volume1 = Fog::Ovirt::Compute::Volume.new(
+          storage_domain: 'storage1',
+          size_gb: '1',
+          bootable: 'true',
+          sparse: 'true',
+          wipe_after_delete: 'false',
+          name: 'boot_disk'
+        )
+
+        @vm.stubs(:volumes).returns([volume1])
+
+        attrs = @cr.vm_compute_attributes_for('abc')
+        assert_equal 'true', attrs[:volumes_attributes]['0'][:bootable]
+        assert_equal 'false', attrs[:volumes_attributes]['0'][:wipe_after_delete]
+      end
+    end
   end
 end
