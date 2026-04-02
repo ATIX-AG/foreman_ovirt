@@ -65,7 +65,7 @@ module ForemanOvirt
             'name' => 'nic1',
             'network' => '00000000-0000-0000-0000-000000000009',
             'interface' => 'virtio',
-            'vnic_profile' => '871f3a06-ef53-4ab1-922f-5aa2bea2e94e'
+            'vnic_profile' => '871f3a06-ef53-4ab1-922f-5aa2bea2e94e',
           },
           host.primary_interface.compute_attributes
         )
@@ -74,4 +74,3 @@ module ForemanOvirt
     end
   end
 end
-
