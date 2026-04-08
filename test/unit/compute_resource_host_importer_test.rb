@@ -6,7 +6,7 @@ module ForemanOvirt
   class ComputeResourceHostImporterTest < ActiveSupport::TestCase
     setup do
       Fog.mock!
-      User.current = users :admin
+      User.current = users(:admin)
     end
 
     teardown do
@@ -19,41 +19,13 @@ module ForemanOvirt
         vm: vm
       )
     end
+
     let(:host) { importer.host }
     let(:vm) { compute_resource.find_vm_by_uuid(uuid) }
 
     context 'on ovirt' do
+      let(:compute_resource) { FactoryBot.build(:ovirt_cr) }
       let(:uuid) { '52b9406e-cf66-4867-8655-719a094e324c' }
-
-      let(:compute_resource) do
-        cr = FactoryBot.build(:ovirt_cr)
-        client = mock
-        servers = mock
-
-        # Create mock VM with required attributes for host import
-        vm = mock('vm')
-        vm.stubs(:identity).returns(uuid)
-        vm.stubs(:hostname).returns('vm01')
-        vm.stubs(:name).returns('vm01')
-        vm.stubs(:mac).returns('00:1a:4a:23:1b:8f')
-        vm.stubs(:attributes).returns({})
-        vm.stubs(:volumes).returns([])
-
-        # For compute attributes, the importer needs to access interfaces
-        interface = mock('interface')
-        interface.stubs(:name).returns('nic1')
-        interface.stubs(:mac).returns('00:1a:4a:23:1b:8f')
-        interface.stubs(:network).returns('00000000-0000-0000-0000-000000000009')
-        interface.stubs(:vnic_profile).returns('871f3a06-ef53-4ab1-922f-5aa2bea2e94e')
-        interface.stubs(:interface).returns('virtio')
-
-        vm.stubs(:interfaces).returns([interface])
-
-        servers.stubs(:get).with(uuid).returns(vm)
-        client.stubs(:servers).returns(servers)
-        cr.stubs(:client).returns(client)
-        cr
-      end
 
       test 'imports the VM with all parameters' do
         assert_equal 'vm01', host.name
