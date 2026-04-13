@@ -70,7 +70,7 @@ jobs:
         run: gem push "$(ls -t *.gem | head -n 1)"
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: ./*.gem
 
@@ -92,7 +92,7 @@ jobs:
           path: .
 
       - name: Create GitHub Pre-Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           prerelease: true
           files: ./*.gem
