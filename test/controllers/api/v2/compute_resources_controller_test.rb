@@ -75,10 +75,11 @@ module Api
 
           assert_response :created
           show_response = ActiveSupport::JSON.decode(@response.body)
-          assert_equal 'test', show_response['datacenter']
-        end
+           # Assert it was converted to the specific UUID we mocked
+           assert_equal datacenter_uuid, show_response['datacenter']
+         end
 
-        test 'should create with datacenter uuid' do
+         test 'should create with datacenter uuid' do
           datacenter_uuid = Foreman.uuid
           ForemanOvirt::Ovirt.any_instance.stubs(:datacenters).returns([['test', datacenter_uuid]])
 
@@ -92,8 +93,14 @@ module Api
         end
 
         test 'should update with datacenter name' do
+          datacenter_uuid = Foreman.uuid
           compute_resource = FactoryBot.create(:ovirt_cr)
-          ForemanOvirt::Ovirt.any_instance.stubs(:datacenters).returns([['test', Foreman.uuid]])
+
+          # Mock the client to include the datacenters for the extension to find
+          quota = Fog::Ovirt::Compute::Quota.new(id: '1', name: 'Default')
+          client_mock = mock.tap { |m| m.stubs(datacenters: [], quotas: [quota], servers: []) }
+          ForemanOvirt::Ovirt.any_instance.stubs(:client).returns(client_mock)
+          ForemanOvirt::Ovirt.any_instance.stubs(:datacenters).returns([['test', datacenter_uuid]])
           ForemanOvirt::Ovirt.any_instance.stubs(:test_connection).returns(true)
 
           attrs = { datacenter: 'test' }
@@ -101,7 +108,9 @@ module Api
 
           assert_response :ok
           show_response = ActiveSupport::JSON.decode(@response.body)
-          assert_equal 'test', show_response['datacenter']
+
+          # Assert it was converted to the specific UUID we mocked
+          assert_equal datacenter_uuid, show_response['datacenter']
         end
       end
 
