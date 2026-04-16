@@ -5,7 +5,9 @@ module ForemanOvirt
     extend ActiveSupport::Concern
 
     included do
-      before_action :convert_ovirt_datacenter_to_uuid, only: [:create, :update]
+      # rubocop:disable Rails/LexicallyScopedActionFilter
+      before_action :convert_ovirt_datacenter_to_uuid, only: %i[create update]
+      # rubocop:enable Rails/LexicallyScopedActionFilter
     end
 
     private
@@ -34,14 +36,12 @@ module ForemanOvirt
 
       temp_cr = @compute_resource || ::ComputeResource.new_provider(cr_params.to_unsafe_hash.except(:datacenter))
 
-      if temp_cr.respond_to?(:get_datacenter_uuid)
-        temp_cr.test_connection
-        # Mutate the params object directly. When the core create/update method runs,
-        # it will read this updated UUID instead of the datacenter name string.
-        params[:compute_resource][:datacenter] = temp_cr.get_datacenter_uuid(datacenter_param)
-      end
+      return unless temp_cr.respond_to?(:get_datacenter_uuid)
+
+      temp_cr.test_connection
+      # Mutate the params object directly. When the core create/update method runs,
+      # it will read this updated UUID instead of the datacenter name string.
+      params[:compute_resource][:datacenter] = temp_cr.get_datacenter_uuid(datacenter_param)
     end
   end
 end
-
-
