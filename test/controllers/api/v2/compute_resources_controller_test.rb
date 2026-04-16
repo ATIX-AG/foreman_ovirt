@@ -75,11 +75,11 @@ module Api
 
           assert_response :created
           show_response = ActiveSupport::JSON.decode(@response.body)
-           # Assert it was converted to the specific UUID we mocked
-           assert_equal datacenter_uuid, show_response['datacenter']
-         end
+          # Assert it was converted to the specific UUID we mocked
+          assert_equal datacenter_uuid, show_response['datacenter']
+        end
 
-         test 'should create with datacenter uuid' do
+        test 'should create with datacenter uuid' do
           datacenter_uuid = Foreman.uuid
           ForemanOvirt::Ovirt.any_instance.stubs(:datacenters).returns([['test', datacenter_uuid]])
 
