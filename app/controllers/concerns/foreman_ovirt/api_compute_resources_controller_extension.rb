@@ -12,8 +12,6 @@ module ForemanOvirt
 
     private
 
-    # Converts oVirt datacenter names to UUIDs before saving.
-    # Handles credential merging for updates to use new credentials if provided.
     def convert_ovirt_datacenter_to_uuid
       cr_params = params[:compute_resource]
 
@@ -25,27 +23,13 @@ module ForemanOvirt
       return if datacenter_param.blank? || Foreman.is_uuid?(datacenter_param)
 
       # Build temp CR with merged attributes for updates (to use new credentials if provided)
-      if @compute_resource
-        merged = @compute_resource.attributes.merge(cr_params.to_unsafe_hash).except(:datacenter)
-        temp_cr = ::ComputeResource.new_provider(merged)
-      else
-        temp_cr = ::ComputeResource.new_provider(cr_params.to_unsafe_hash.except(:datacenter))
-      end
-
-      return unless temp_cr.respond_to?(:get_datacenter_uuid)
-
-      # Test connection and halt on errors
-      temp_cr.test_connection
-      if temp_cr.errors.any?
-        render_exception(
-          Foreman::Exception.new(temp_cr.errors.full_messages.join('; ')),
-          status: :unprocessable_entity
-        )
-        return
-      end
+      merged_params = @compute_resource&.attributes&.merge(cr_params.to_unsafe_hash) || cr_params.to_unsafe_hash
+      temp_cr = ::ComputeResource.new_provider(merged_params.except(:datacenter))
 
       # Convert datacenter name to UUID
       params[:compute_resource][:datacenter] = temp_cr.get_datacenter_uuid(datacenter_param)
+    rescue Foreman::Exception
+      # Intentionally silent - model validations during save will catch and report credential errors
     end
   end
 end
