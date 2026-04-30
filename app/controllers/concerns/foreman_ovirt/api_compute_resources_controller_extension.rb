@@ -15,8 +15,12 @@ module ForemanOvirt
     def convert_ovirt_datacenter_to_uuid
       cr_params = params[:compute_resource]
 
+      # Fetch resource manually since plugin hooks often run before core's `find_resource`
+      resource = @compute_resource || (params[:id] && ::ComputeResource.unscoped.find_by(id: params[:id]))
+
       # Only process oVirt resources with datacenter names (not UUIDs)
-      is_ovirt = cr_params&.dig(:provider)&.downcase == 'ovirt' || @compute_resource.is_a?(ForemanOvirt::Ovirt)
+      provider = cr_params&.dig(:provider) || resource&.provider
+      is_ovirt = provider&.downcase == 'ovirt' || resource.is_a?(ForemanOvirt::Ovirt)
       return unless is_ovirt
 
       datacenter_param = cr_params&.dig(:datacenter)
@@ -26,13 +30,16 @@ module ForemanOvirt
       # - For UPDATE: @compute_resource exists. We merge new incoming params into existing attributes
       #   so the temporary object has the URL/password needed to connect, even if not sent in this request.
       # - For CREATE: @compute_resource is nil. We fallback to using just the incoming request params.
-      merged_params = @compute_resource&.attributes&.merge(cr_params.to_unsafe_hash) || cr_params.to_unsafe_hash
-      temp_cr = ::ComputeResource.new_provider(merged_params.except(:datacenter))
+      merged_params = resource&.attributes&.merge(cr_params.to_unsafe_hash) || cr_params.to_unsafe_hash
+      merged_params[:provider] ||= 'ovirt'
+
+      temp_cr = ::ComputeResource.new_provider(merged_params.with_indifferent_access.except(:datacenter))
 
       # Convert datacenter name to UUID
-      params[:compute_resource][:datacenter] = temp_cr.get_datacenter_uuid(datacenter_param)
-    rescue Foreman::Exception
-      # Intentionally silent - model validations during save will catch and report credential errors
+      uuid = temp_cr.get_datacenter_uuid(datacenter_param)
+      params[:compute_resource][:datacenter] = uuid if uuid.present?
+    rescue StandardError
+      # Intentionally silent : model validations during save will catch and report credential errors
     end
   end
 end
