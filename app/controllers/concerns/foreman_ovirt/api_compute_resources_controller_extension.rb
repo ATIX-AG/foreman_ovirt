@@ -14,18 +14,31 @@ module ForemanOvirt
 
     def convert_ovirt_datacenter_to_uuid
       cr_params = params[:compute_resource]
-
-      # Fetch resource manually since plugin hooks often run before core's `find_resource`
-      resource = @compute_resource || (params[:id] && ::ComputeResource.unscoped.find_by(id: params[:id]))
-
-      # Only process oVirt resources with datacenter names (not UUIDs)
-      provider = cr_params&.dig(:provider) || resource&.provider
-      is_ovirt = provider&.downcase == 'ovirt' || resource.is_a?(ForemanOvirt::Ovirt)
-      return unless is_ovirt
+      return unless ovirt_resource?(cr_params)
 
       datacenter_param = cr_params&.dig(:datacenter)
       return if datacenter_param.blank? || Foreman.is_uuid?(datacenter_param)
 
+      uuid = fetch_datacenter_uuid(cr_params, datacenter_param)
+      params[:compute_resource][:datacenter] = uuid if uuid.present?
+    rescue StandardError
+      # Intentionally silent : model validations during save will catch and report credential errors
+    end
+
+    def ovirt_resource?(cr_params)
+      resource = fetch_resource
+      # Only process oVirt resources with datacenter names (not UUIDs)
+      provider = cr_params&.dig(:provider) || resource&.provider
+      provider&.downcase == 'ovirt' || resource.is_a?(ForemanOvirt::Ovirt)
+    end
+
+    # Fetch resource manually since plugin hooks often run before core's `find_resource`
+    def fetch_resource
+      @compute_resource || (params[:id] && ::ComputeResource.unscoped.find_by(id: params[:id]))
+    end
+
+    def fetch_datacenter_uuid(cr_params, datacenter_param)
+      resource = fetch_resource
       # Build temp CR credentials:
       # - For UPDATE: @compute_resource exists. We merge new incoming params into existing attributes
       #   so the temporary object has the URL/password needed to connect, even if not sent in this request.
@@ -34,12 +47,7 @@ module ForemanOvirt
       merged_params[:provider] ||= 'ovirt'
 
       temp_cr = ::ComputeResource.new_provider(merged_params.with_indifferent_access.except(:datacenter))
-
-      # Convert datacenter name to UUID
-      uuid = temp_cr.get_datacenter_uuid(datacenter_param)
-      params[:compute_resource][:datacenter] = uuid if uuid.present?
-    rescue StandardError
-      # Intentionally silent : model validations during save will catch and report credential errors
+      temp_cr.get_datacenter_uuid(datacenter_param)
     end
   end
 end
