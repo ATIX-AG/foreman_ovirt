@@ -5,7 +5,9 @@ require 'fog/ovirt/models/compute/quota'
 
 module Api
   module V2
+    # rubocop:disable Metrics/ClassLength
     class OvirtComputeResourcesControllerTest < ActionController::TestCase
+      # rubocop:enable Metrics/ClassLength
       tests Api::V2::ComputeResourcesController
 
       def setup
