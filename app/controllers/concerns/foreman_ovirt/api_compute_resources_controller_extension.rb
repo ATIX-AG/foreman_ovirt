@@ -14,19 +14,18 @@ module ForemanOvirt
 
     def convert_ovirt_datacenter_to_uuid
       cr_params = params[:compute_resource]
-      return unless ovirt_resource?(cr_params)
+      resource = fetch_resource
+      return unless ovirt_resource?(cr_params, resource)
 
       datacenter_param = cr_params&.dig(:datacenter)
       return if datacenter_param.blank? || Foreman.is_uuid?(datacenter_param)
-
-      uuid = fetch_datacenter_uuid(cr_params, datacenter_param)
+      uuid = fetch_datacenter_uuid(cr_params, datacenter_param, resource)
       params[:compute_resource][:datacenter] = uuid if uuid.present?
     rescue StandardError
       # Intentionally silent : model validations during save will catch and report credential errors
     end
 
-    def ovirt_resource?(cr_params)
-      resource = fetch_resource
+    def ovirt_resource?(cr_params, resource)
       # Only process oVirt resources with datacenter names (not UUIDs)
       provider = cr_params&.dig(:provider) || resource&.provider
       provider&.downcase == 'ovirt' || resource.is_a?(ForemanOvirt::Ovirt)
@@ -37,12 +36,11 @@ module ForemanOvirt
       @compute_resource || (params[:id] && ::ComputeResource.unscoped.find_by(id: params[:id]))
     end
 
-    def fetch_datacenter_uuid(cr_params, datacenter_param)
-      resource = fetch_resource
+    def fetch_datacenter_uuid(cr_params, datacenter_param, resource)
       # Build temp CR credentials:
-      # - For UPDATE: @compute_resource exists. We merge new incoming params into existing attributes
+      # - For UPDATE: resource exists. We merge new incoming params into existing attributes
       #   so the temporary object has the URL/password needed to connect, even if not sent in this request.
-      # - For CREATE: @compute_resource is nil. We fallback to using just the incoming request params.
+      # - For CREATE: resource is nil. We fallback to using just the incoming request params.
       merged_params = resource&.attributes&.merge(cr_params.to_unsafe_hash) || cr_params.to_unsafe_hash
       merged_params[:provider] ||= 'ovirt'
 
