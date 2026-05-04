@@ -157,6 +157,38 @@ module Api
           assert_equal 'Only updating the description', show_response['description']
           assert_equal original_datacenter, show_response['datacenter']
         end
+
+        test 'should skip datacenter conversion if provider is not ovirt (tests ovirt_resource?)' do
+          # We send a request for a 'Libvirt' provider, not 'Ovirt'
+          # The before_action hook should return early and leave datacenter untouched
+          attrs = { name: 'Non-Ovirt-test', url: 'qemu:///system', provider: 'Libvirt',
+                    datacenter: 'leave-me-alone' }
+          post :create, params: { compute_resource: attrs }
+
+          # Libvirt resource creation will fail, but the datacenter string should be untouched in params
+          # This proves ovirt_resource? returned false and skipped conversion
+          assert_equal 'leave-me-alone', @controller.params[:compute_resource][:datacenter]
+        end
+
+        test 'should fetch existing resource on update to determine provider (tests fetch_resource)' do
+          # Create an oVirt compute resource in the database
+          compute_resource = FactoryBot.create(:ovirt_cr)
+          datacenter_uuid = Foreman.uuid
+          ForemanOvirt::Ovirt.any_instance.stubs(:datacenters).returns([['test', datacenter_uuid]])
+          ForemanOvirt::Ovirt.any_instance.stubs(:test_connection).returns(true)
+
+          # We are NOT sending `provider: 'ovirt'` in the params.
+          # This forces `fetch_resource` to find the record by ID to realize it is oVirt.
+          # The ovirt_resource? method will then use resource.is_a?(ForemanOvirt::Ovirt) to check
+          attrs = { datacenter: 'test' }
+          put :update, params: { id: compute_resource.id, compute_resource: attrs }
+
+          assert_response :ok
+          show_response = ActiveSupport::JSON.decode(@response.body)
+
+          # If it successfully converted, it proves fetch_resource found the DB record!
+          assert_equal datacenter_uuid, show_response['datacenter']
+        end
       end
 
       context 'ovirt cache refreshing' do
