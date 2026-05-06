@@ -98,10 +98,6 @@ module Api
           datacenter_uuid = Foreman.uuid
           compute_resource = FactoryBot.create(:ovirt_cr)
 
-          # Mock the client to include the datacenters for the extension to find
-          quota = Fog::Ovirt::Compute::Quota.new(id: '1', name: 'Default')
-          client_mock = mock.tap { |m| m.stubs(datacenters: [], quotas: [quota], servers: []) }
-          ForemanOvirt::Ovirt.any_instance.stubs(:client).returns(client_mock)
           ForemanOvirt::Ovirt.any_instance.stubs(:datacenters).returns([['test', datacenter_uuid]])
           ForemanOvirt::Ovirt.any_instance.stubs(:test_connection).returns(true)
 
