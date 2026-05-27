@@ -6,46 +6,31 @@ module ForemanOvirt
 
     included do
       # rubocop:disable Rails/LexicallyScopedActionFilter
-      before_action :convert_ovirt_datacenter_to_uuid, only: %i[create update]
+      before_action :convert_datacenter_to_uuid, only: %i[create update]
       # rubocop:enable Rails/LexicallyScopedActionFilter
     end
 
     private
 
-    def convert_ovirt_datacenter_to_uuid
-      cr_params = params[:compute_resource]
-      resource = fetch_resource
-      return unless ovirt_resource?(cr_params, resource)
+    def convert_datacenter_to_uuid
+      datacenter = params[:compute_resource][:datacenter]
+      return if datacenter.blank? || Foreman.is_uuid?(datacenter)
 
-      datacenter_param = cr_params&.dig(:datacenter)
-      return if datacenter_param.blank? || Foreman.is_uuid?(datacenter_param)
-      uuid = fetch_datacenter_uuid(cr_params, datacenter_param, resource)
+      if params[:action] == 'create'
+        return unless compute_resource_params[:provider]&.downcase == 'ovirt'
+        @compute_resource = ComputeResource.new_provider(compute_resource_params.except(:datacenter))
+      end
+
+      uuid = change_datacenter_to_uuid(datacenter)
       params[:compute_resource][:datacenter] = uuid if uuid.present?
     rescue StandardError
       # Intentionally silent : model validations during save will catch and report credential errors
     end
 
-    def ovirt_resource?(cr_params, resource)
-      # Only process oVirt resources with datacenter names (not UUIDs)
-      provider = cr_params&.dig(:provider) || resource&.provider
-      provider&.downcase == 'ovirt' || resource.is_a?(ForemanOvirt::Ovirt)
-    end
-
-    # Fetch resource manually since plugin hooks often run before core's `find_resource`
-    def fetch_resource
-      @compute_resource || (params[:id] && ::ComputeResource.unscoped.find_by(id: params[:id]))
-    end
-
-    def fetch_datacenter_uuid(cr_params, datacenter_param, resource)
-      # Build temp CR credentials:
-      # - For UPDATE: resource exists. We merge new incoming params into existing attributes
-      #   so the temporary object has the URL/password needed to connect, even if not sent in this request.
-      # - For CREATE: resource is nil. We fallback to using just the incoming request params.
-      merged_params = resource&.attributes&.merge(cr_params.to_unsafe_hash) || cr_params.to_unsafe_hash
-      merged_params[:provider] ||= 'ovirt'
-
-      temp_cr = ::ComputeResource.new_provider(merged_params.with_indifferent_access.except(:datacenter))
-      temp_cr.get_datacenter_uuid(datacenter_param)
+    def change_datacenter_to_uuid(datacenter)
+      return unless @compute_resource.respond_to?(:get_datacenter_uuid)
+      @compute_resource.test_connection
+      @compute_resource.get_datacenter_uuid(datacenter)
     end
   end
 end
