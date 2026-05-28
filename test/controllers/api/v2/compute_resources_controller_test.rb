@@ -5,7 +5,9 @@ require 'fog/ovirt/models/compute/quota'
 
 module Api
   module V2
+    # rubocop:disable Metrics/ClassLength
     class OvirtComputeResourcesControllerTest < ActionController::TestCase
+      # rubocop:enable Metrics/ClassLength
       tests Api::V2::ComputeResourcesController
 
       def setup
@@ -119,7 +121,8 @@ module Api
         end
 
         test 'should handle datacenter conversion failure' do
-          ForemanOvirt::Ovirt.any_instance.stubs(:test_connection).raises(Foreman::Exception.new('Datacenter not found or Auth failed'))
+          exception_msg = 'Datacenter not found or Auth failed'
+          ForemanOvirt::Ovirt.any_instance.stubs(:test_connection).raises(Foreman::Exception.new(exception_msg))
 
           attrs = { name: 'Ovirt-rescue-test', url: 'https://myovirt/api', provider: 'ovirt',
                     datacenter: 'Failing-DC', user: 'user@example.com', password: 'secret' }
@@ -130,7 +133,8 @@ module Api
 
         test 'should skip conversion safely if datacenter is completely omitted or blank' do
           ForemanOvirt::Ovirt.any_instance.expects(:get_datacenter_uuid).never
-          attrs = { name: 'Ovirt-omitted-test', url: 'https://myovirt/api', provider: 'ovirt', user: 'user@example.com', password: 'secret' }
+          attrs = { name: 'Ovirt-omitted-test', url: 'https://myovirt/api', provider: 'ovirt',
+                    user: 'user@example.com', password: 'secret' }
           post :create, params: { compute_resource: attrs }
 
           assert_response :created

@@ -24,7 +24,7 @@ module ForemanOvirt
       uuid = change_datacenter_to_uuid(datacenter)
       params[:compute_resource][:datacenter] = uuid if uuid.present?
     rescue Foreman::Exception => e
-      render_exception(e, :status => :unprocessable_entity)
+      render_exception(e, status: :unprocessable_entity)
       false
     end
 
