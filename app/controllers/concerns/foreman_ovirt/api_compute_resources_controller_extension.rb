@@ -23,8 +23,9 @@ module ForemanOvirt
 
       uuid = change_datacenter_to_uuid(datacenter)
       params[:compute_resource][:datacenter] = uuid if uuid.present?
-    rescue StandardError
-      # Intentionally silent : model validations during save will catch and report credential errors
+    rescue Foreman::Exception => e
+      render_exception(e, :status => :unprocessable_entity)
+      false
     end
 
     def change_datacenter_to_uuid(datacenter)

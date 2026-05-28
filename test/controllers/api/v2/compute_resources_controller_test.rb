@@ -5,9 +5,7 @@ require 'fog/ovirt/models/compute/quota'
 
 module Api
   module V2
-    # rubocop:disable Metrics/ClassLength
     class OvirtComputeResourcesControllerTest < ActionController::TestCase
-      # rubocop:enable Metrics/ClassLength
       tests Api::V2::ComputeResourcesController
 
       def setup
@@ -68,7 +66,7 @@ module Api
 
         test 'should create with datacenter name' do
           datacenter_uuid = Foreman.uuid
-          ForemanOvirt::Ovirt.any_instance.stubs(:datacenters).returns([['test', datacenter_uuid]])
+          ForemanOvirt::Ovirt.any_instance.stubs(:get_datacenter_uuid).returns(datacenter_uuid)
           ForemanOvirt::Ovirt.any_instance.stubs(:test_connection).returns(true)
 
           attrs = { name: 'Ovirt-create-test', url: 'https://myovirt/api', provider: 'ovirt',
@@ -76,97 +74,90 @@ module Api
           post :create, params: { compute_resource: attrs }
 
           assert_response :created
-          show_response = ActiveSupport::JSON.decode(@response.body)
-          assert_equal datacenter_uuid, show_response['datacenter']
+          assert_equal datacenter_uuid, ActiveSupport::JSON.decode(@response.body)['datacenter']
         end
 
         test 'should create with datacenter uuid' do
           datacenter_uuid = Foreman.uuid
-          ForemanOvirt::Ovirt.any_instance.stubs(:datacenters).returns([['test', datacenter_uuid]])
+          # Implicitly tests that conversion is skipped
+          ForemanOvirt::Ovirt.any_instance.expects(:get_datacenter_uuid).never
 
           attrs = { name: 'Ovirt-create-test', url: 'https://myovirt/api', provider: 'ovirt',
                     datacenter: datacenter_uuid, user: 'user@example.com', password: 'secret' }
           post :create, params: { compute_resource: attrs }
 
           assert_response :created
-          show_response = ActiveSupport::JSON.decode(@response.body)
-          assert_equal datacenter_uuid, show_response['datacenter']
+          assert_equal datacenter_uuid, ActiveSupport::JSON.decode(@response.body)['datacenter']
         end
 
         test 'should update with datacenter name' do
           datacenter_uuid = Foreman.uuid
           compute_resource = FactoryBot.create(:ovirt_cr)
 
-          ForemanOvirt::Ovirt.any_instance.stubs(:datacenters).returns([['test', datacenter_uuid]])
+          ForemanOvirt::Ovirt.any_instance.stubs(:get_datacenter_uuid).returns(datacenter_uuid)
           ForemanOvirt::Ovirt.any_instance.stubs(:test_connection).returns(true)
 
           attrs = { datacenter: 'test' }
           put :update, params: { id: compute_resource.id, compute_resource: attrs }
 
           assert_response :ok
-          show_response = ActiveSupport::JSON.decode(@response.body)
-          assert_equal datacenter_uuid, show_response['datacenter']
+          assert_equal datacenter_uuid, ActiveSupport::JSON.decode(@response.body)['datacenter']
         end
 
-        test 'should handle test_connection failure silently' do
-          # Simulate test_connection raising any connection error
-          ForemanOvirt::Ovirt.any_instance.stubs(:test_connection).raises(StandardError.new('Connection timeout'))
+        test 'should update with datacenter uuid' do
+          datacenter_uuid = Foreman.uuid
+          compute_resource = FactoryBot.create(:ovirt_cr)
 
-          attrs = { name: 'Ovirt-connection-fail-test', url: 'https://myovirt/api', provider: 'ovirt',
+          # Implicitly tests that conversion is skipped
+          ForemanOvirt::Ovirt.any_instance.expects(:get_datacenter_uuid).never
+
+          attrs = { datacenter: datacenter_uuid }
+          put :update, params: { id: compute_resource.id, compute_resource: attrs }
+
+          assert_response :ok
+          assert_equal datacenter_uuid, ActiveSupport::JSON.decode(@response.body)['datacenter']
+        end
+
+        test 'should handle datacenter conversion failure' do
+          ForemanOvirt::Ovirt.any_instance.stubs(:test_connection).raises(Foreman::Exception.new('Datacenter not found or Auth failed'))
+
+          attrs = { name: 'Ovirt-rescue-test', url: 'https://myovirt/api', provider: 'ovirt',
                     datacenter: 'Failing-DC', user: 'user@example.com', password: 'secret' }
           post :create, params: { compute_resource: attrs }
 
-          # Should still return created (because the mock doesn't simulate the DB validation failing),
-          # but the datacenter string must remain unconverted because of the silent rescue.
-          assert_response :created
-          show_response = ActiveSupport::JSON.decode(@response.body)
-          assert_equal 'Failing-DC', show_response['datacenter']
+          assert_response :unprocessable_entity
         end
 
-        test 'should skip datacenter conversion if datacenter param is blank' do
-          attrs = { name: 'Ovirt-blank-test', url: 'https://myovirt/api', provider: 'ovirt',
-                    datacenter: '', user: 'user@example.com', password: 'secret' }
+        test 'should skip conversion safely if datacenter is completely omitted or blank' do
+          ForemanOvirt::Ovirt.any_instance.expects(:get_datacenter_uuid).never
+          attrs = { name: 'Ovirt-omitted-test', url: 'https://myovirt/api', provider: 'ovirt', user: 'user@example.com', password: 'secret' }
           post :create, params: { compute_resource: attrs }
 
           assert_response :created
-          show_response = ActiveSupport::JSON.decode(@response.body)
-          assert_includes [nil, ''], show_response['datacenter']
+          assert_nil ActiveSupport::JSON.decode(@response.body)['datacenter']
         end
 
         test 'should skip datacenter conversion if provider is not ovirt' do
-          attrs = { name: 'Non-Ovirt-test', url: 'qemu:///system', provider: 'Libvirt',
-                    datacenter: 'leave-me-alone' }
+          ForemanOvirt::Ovirt.any_instance.expects(:get_datacenter_uuid).never
 
+          attrs = { name: 'Non-Ovirt-test', url: 'qemu:///system', provider: 'Libvirt', datacenter: 'leave-me-alone' }
           post :create, params: { compute_resource: attrs }
 
           assert_equal 'leave-me-alone', @controller.params[:compute_resource][:datacenter]
         end
-      end
 
-      test 'should update with datacenter uuid' do
-        datacenter_uuid = Foreman.uuid
-        compute_resource = FactoryBot.create(:ovirt_cr)
+        test 'should handle provider name with different casing' do
+          datacenter_uuid = Foreman.uuid
+          ForemanOvirt::Ovirt.any_instance.stubs(:get_datacenter_uuid).returns(datacenter_uuid)
+          ForemanOvirt::Ovirt.any_instance.stubs(:test_connection).returns(true)
 
-        # Expects datacenters to never be called because it's already a UUID
-        ForemanOvirt::Ovirt.any_instance.expects(:datacenters).never
+          attrs = { name: 'Ovirt-uppercase-test', url: 'https://myovirt/api', provider: 'OVIRT',
+                    datacenter: 'test', user: 'user@example.com', password: 'secret' }
+          post :create, params: { compute_resource: attrs }
 
-        attrs = { datacenter: datacenter_uuid }
-        put :update, params: { id: compute_resource.id, compute_resource: attrs }
-
-        assert_response :ok
-        show_response = ActiveSupport::JSON.decode(@response.body)
-        assert_equal datacenter_uuid, show_response['datacenter']
-      end
-
-      test 'should skip conversion if datacenter is omitted from update params' do
-        compute_resource = FactoryBot.create(:ovirt_cr)
-        original_datacenter = compute_resource.datacenter
-        attrs = { description: 'Updated description' }
-        put :update, params: { id: compute_resource.id, compute_resource: attrs }
-
-        assert_response :ok
-        show_response = ActiveSupport::JSON.decode(@response.body)
-        assert_equal original_datacenter, show_response['datacenter']
+          assert_response :created
+          assert_equal datacenter_uuid, ActiveSupport::JSON.decode(@response.body)['datacenter']
+        end
       end
 
       context 'ovirt cache refreshing' do
