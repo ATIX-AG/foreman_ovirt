@@ -15,6 +15,8 @@ import {
 } from '@patternfly/react-core';
 import { number_to_human_size as NumberToHumanSize } from 'number_helpers';
 
+const BYTES_PER_GB = 1024 ** 3;
+
 const OvirtCard = ({ hostDetails }) => {
   const { id: hostId, compute_resource_provider: provider } = hostDetails;
   const virtUrl = foremanUrl(`/api/hosts/${hostId}/vm_compute_attributes`);
@@ -106,7 +108,7 @@ const OvirtCard = ({ hostDetails }) => {
               <DescriptionListGroup key={`volume-${index}`}>
                 <DescriptionListTerm>{__('Disk')}</DescriptionListTerm>
                 <DescriptionListDescription>
-                  {NumberToHumanSize(vol.size_gb * 1024 ** 3, {
+                  {NumberToHumanSize(vol.size_gb * BYTES_PER_GB, {
                     strip_insignificant_zeros: true,
                   })}
                 </DescriptionListDescription>
