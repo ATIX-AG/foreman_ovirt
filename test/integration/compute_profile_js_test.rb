@@ -17,7 +17,7 @@ module ForemanOvirt
     test 'create compute profile' do
       visit compute_profiles_path
       click_on('Create Compute Profile')
-      fill_in('compute_profile_name', with: 'test')
+      fill_in('compute_profile_name', with: 'test-profile')
       click_on('Submit')
 
       click_link(@ovirt_cr.to_s)
@@ -32,14 +32,14 @@ module ForemanOvirt
 
       click_button('Submit')
 
-      created_profile = ComputeProfile.find_by!(name: 'test')
+      created_profile = ComputeProfile.find_by!(name: 'test-profile')
       assert_current_path compute_profile_path(created_profile)
 
       # Reload the form and verify the template values were saved and are
       # rendered back correctly by the server.
       # hwp_small has memory: 536870912 bytes (512 MB) and cores: 1 per Fog mock data.
       visit compute_profiles_path
-      click_link('test')
+      click_link('test-profile')
       click_link(@ovirt_cr.to_s)
 
       assert_equal '512 MB', find_field('compute_attribute_vm_attrs_memory').value
